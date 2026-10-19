@@ -51,6 +51,7 @@ dell'assembly (LDI, ADD, JMP...) restano quelli internazionali.
 
 ## Cosa di Ce++ usa questo programma
 
+- `scegli`/`caso` per decodificare le istruzioni
 - campi a bit e struttura impacchettata (`Segnali`), aritmetica `naturale16`
   con overflow definito
 - memoria dell'heap (`riserva` / `libera`) e fette con controllo dei limiti
@@ -69,7 +70,6 @@ semplicemente `a.n come naturale16`. Poi caricala in un test come
 
 ## Cose notate scrivendolo (dove Ce++ puo' migliorare)
 
-- Non c'e' `switch`: il decodificatore delle istruzioni e' una catena di `se`.
 - `Segnali` non si costruisce da una parola grezza (ancora nessun cast sicuro
   tra un intero e una struttura impacchettata).
 - Il disassemblatore stampa gli operandi come `r0 / 0` anche per le istruzioni

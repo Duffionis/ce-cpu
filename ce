@@ -5,13 +5,13 @@
 set -e
 QUI="$(cd "$(dirname "$0")" && pwd)"
 COMP="$QUI/.compilatore"
-PIN="fcab0bf"   # versione del compilatore con cui questo programma e' stato provato
+PIN="v0.2"   # versione del compilatore con cui questo programma e' stato provato
 if [ -n "$CE_COMPILATORE" ]; then
   ln -sfn "$CE_COMPILATORE" "$COMP"
 else
   [ -f "$COMP/ce-lang/ce.py" ] || git clone -q https://github.com/Duffionis/Ce- "$COMP"
-  if [ "$(git -C "$COMP" rev-parse --short HEAD)" != "$PIN" ]; then
-    git -C "$COMP" fetch -q origin
+  if [ "$(git -C "$COMP" rev-parse HEAD)" != "$(git -C "$COMP" rev-parse -q --verify "$PIN^{commit}" || echo -)" ]; then
+    git -C "$COMP" fetch -q --tags origin
     git -C "$COMP" checkout -q "$PIN"
   fi
 fi

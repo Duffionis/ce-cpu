@@ -79,71 +79,74 @@ funzione passo(c: &Cpu) -> Risultato<booleano, testo> {
     variabile a: naturale16 = c.reg[rd];
     variabile b: naturale16 = c.reg[rs];
 
-    se op == OP_NOP { ritorna bene(vero); }
-    se op == OP_LDI {
-        c.reg[rd] = imm;
-        ritorna bene(vero);
-    }
-    se op == OP_ADD {
-        variabile r: naturale16 = a + b;
-        c.reg[rd] = r;
-        c.imposta_segnali(r, r < a);
-        ritorna bene(vero);
-    }
-    se op == OP_SUB || op == OP_CMP {
-        variabile r: naturale16 = a - b;
-        se op == OP_SUB { c.reg[rd] = r; }
-        c.imposta_segnali(r, a < b);
-        ritorna bene(vero);
-    }
-    se op == OP_AND || op == OP_OR || op == OP_XOR {
-        variabile r: naturale16 = a & b;
-        se op == OP_OR { r = a | b; }
-        se op == OP_XOR { r = a ^ b; }
-        c.reg[rd] = r;
-        c.imposta_segnali(r, falso);
-        ritorna bene(vero);
-    }
-    se op == OP_LD {
-        se (b come dimensione) >= c.mem.lunghezza {
-            ritorna male("lettura fuori dalla memoria");
+    scegli op {
+        caso OP_NOP { ritorna bene(vero); }
+        caso OP_LDI {
+            c.reg[rd] = imm;
+            ritorna bene(vero);
         }
-        c.reg[rd] = c.mem[b come dimensione];
-        ritorna bene(vero);
-    }
-    se op == OP_ST {
-        se (b come dimensione) >= c.mem.lunghezza {
-            ritorna male("scrittura fuori dalla memoria");
+        caso OP_ADD {
+            variabile r: naturale16 = a + b;
+            c.reg[rd] = r;
+            c.imposta_segnali(r, r < a);
+            ritorna bene(vero);
         }
-        c.mem[b come dimensione] = a;
-        ritorna bene(vero);
+        caso OP_SUB, OP_CMP {
+            variabile r: naturale16 = a - b;
+            se op == OP_SUB { c.reg[rd] = r; }
+            c.imposta_segnali(r, a < b);
+            ritorna bene(vero);
+        }
+        caso OP_AND, OP_OR, OP_XOR {
+            variabile r: naturale16 = a & b;
+            se op == OP_OR { r = a | b; }
+            se op == OP_XOR { r = a ^ b; }
+            c.reg[rd] = r;
+            c.imposta_segnali(r, falso);
+            ritorna bene(vero);
+        }
+        caso OP_LD {
+            se (b come dimensione) >= c.mem.lunghezza {
+                ritorna male("lettura fuori dalla memoria");
+            }
+            c.reg[rd] = c.mem[b come dimensione];
+            ritorna bene(vero);
+        }
+        caso OP_ST {
+            se (b come dimensione) >= c.mem.lunghezza {
+                ritorna male("scrittura fuori dalla memoria");
+            }
+            c.mem[b come dimensione] = a;
+            ritorna bene(vero);
+        }
+        caso OP_JMP {
+            c.pc = imm;
+            ritorna bene(vero);
+        }
+        caso OP_JZ {
+            se c.flag.zero { c.pc = imm; }
+            ritorna bene(vero);
+        }
+        caso OP_JNZ {
+            se !c.flag.zero { c.pc = imm; }
+            ritorna bene(vero);
+        }
+        caso OP_OUT {
+            c.uscita.aggiungi(a);
+            ritorna bene(vero);
+        }
+        caso OP_ADDI {
+            variabile ext: naturale16 = imm;
+            se imm >= 256 { ext = imm | 65024; }
+            c.reg[rd] = a + ext;
+            imposta_segnali(c, c.reg[rd], falso);
+            ritorna bene(vero);
+        }
+        altrimenti {      // OP_HALT
+            c.fermo = vero;
+            ritorna bene(falso);
+        }
     }
-    se op == OP_JMP {
-        c.pc = imm;
-        ritorna bene(vero);
-    }
-    se op == OP_JZ {
-        se c.flag.zero { c.pc = imm; }
-        ritorna bene(vero);
-    }
-    se op == OP_JNZ {
-        se !c.flag.zero { c.pc = imm; }
-        ritorna bene(vero);
-    }
-    se op == OP_OUT {
-        c.uscita.aggiungi(a);
-        ritorna bene(vero);
-    }
-    se op == OP_ADDI {
-        variabile ext: naturale16 = imm;
-        se imm >= 256 { ext = imm | 65024; }
-        c.reg[rd] = a + ext;
-        imposta_segnali(c, c.reg[rd], falso);
-        ritorna bene(vero);
-    }
-    // OP_HALT
-    c.fermo = vero;
-    ritorna bene(falso);
 }
 
 // Esegue fino all'HALT. Ritorna i cicli usati, o un errore.
