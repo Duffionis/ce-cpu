@@ -1,0 +1,84 @@
+// Autotest della CPU TC16: se tutto va bene scrive "tutti i test ok" ed esce con 0.
+usa "programmi.ce";
+
+funzione scrivi_uscita(c: &Cpu) {
+    per i in 0..c.uscita.n {
+        scrivi(c.uscita.valore(i), " ");
+    }
+    stampa("");
+}
+
+funzione prova_fibonacci() {
+    variabile c: Cpu = nuova_cpu();
+    variabile a: Asm = Asm { m: c.mem, n: 0 };
+    a.programma_fibonacci();
+    stampa("--- fibonacci, programma:");
+    disassembla(c.mem, a.n);
+    variabile r: Risultato<u64, testo> = c.esegui(1000);
+    afferma(r.riuscito, "fibonacci: la CPU ha dato errore");
+    stampa("--- fibonacci: ", r.valore, " cicli, uscita:");
+    c.scrivi_uscita();
+    variabile atteso: [u16; 10] = [0, 1, 1, 2, 3, 5, 8, 13, 21, 34];
+    afferma(c.uscita.n == atteso.lunghezza, "fibonacci: quantita' di valori sbagliata");
+    per i in 0..atteso.lunghezza {
+        afferma(c.uscita.valore(i) == atteso[i], "fibonacci: valore sbagliato");
+    }
+    c.libera_cpu();
+}
+
+funzione prova_memoria() {
+    variabile c: Cpu = nuova_cpu();
+    variabile a: Asm = Asm { m: c.mem, n: 0 };
+    a.programma_memoria();
+    variabile r: Risultato<u64, testo> = c.esegui(1000);
+    afferma(r.riuscito, "memoria: la CPU ha dato errore");
+    stampa("--- memoria, uscita:");
+    c.scrivi_uscita();
+    afferma(c.uscita.n == 1 && c.uscita.valore(0) == 10, "memoria: atteso 10");
+    afferma(c.mem[100] == 7, "memoria: la scrittura all'indirizzo 100 manca");
+    c.libera_cpu();
+}
+
+funzione prova_aritmetica() {
+    variabile c: Cpu = nuova_cpu();
+    variabile a: Asm = Asm { m: c.mem, n: 0 };
+    a.programma_aritmetica();
+    variabile r: Risultato<u64, testo> = c.esegui(1000);
+    afferma(r.riuscito, "aritmetica: la CPU ha dato errore");
+    stampa("--- aritmetica, uscita:");
+    c.scrivi_uscita();
+    variabile atteso: [u16; 5] = [2, 8, 14, 6, 77];
+    afferma(c.uscita.n == atteso.lunghezza, "aritmetica: quantita' di valori sbagliata");
+    per i in 0..atteso.lunghezza {
+        afferma(c.uscita.valore(i) == atteso[i], "aritmetica: valore sbagliato");
+    }
+    afferma(c.flag.zero, "aritmetica: il flag zero doveva essere acceso");
+    c.libera_cpu();
+}
+
+funzione prova_errori() {
+    variabile c: Cpu = nuova_cpu();
+    variabile a: Asm = Asm { m: c.mem, n: 0 };
+    a.programma_errore();
+    variabile r: Risultato<u64, testo> = c.esegui(1000);
+    stampa("--- lettura fuori memoria: ", r.errore);
+    afferma(!r.riuscito, "errore: la CPU doveva fallire");
+    c.libera_cpu();
+
+    variabile d: Cpu = nuova_cpu();
+    variabile b: Asm = Asm { m: d.mem, n: 0 };
+    b.programma_infinito();
+    variabile q: Risultato<u64, testo> = d.esegui(50);
+    stampa("--- programma infinito: ", q.errore);
+    afferma(!q.riuscito, "infinito: la CPU doveva fermarsi con un errore");
+    d.libera_cpu();
+}
+
+funzione principale() -> i32 {
+    prova_fibonacci();
+    prova_memoria();
+    prova_aritmetica();
+    prova_errori();
+    stampa("TC16: tutti i test ok");
+    ritorna 0;
+}

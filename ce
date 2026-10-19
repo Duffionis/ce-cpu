@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Lancia il compilatore Ce++ (https://github.com/Duffionis/Ce-), scaricandolo la prima volta.
+#   ./ce run src/principale.ce
+# Per usare una copia del compilatore che hai gia': CE_COMPILATORE=/percorso/di/Ce- ./ce run ...
+set -e
+QUI="$(cd "$(dirname "$0")" && pwd)"
+COMP="$QUI/.compilatore"
+PIN="fef1ed9"   # versione del compilatore con cui questo programma e' stato provato
+if [ -n "$CE_COMPILATORE" ]; then
+  ln -sfn "$CE_COMPILATORE" "$COMP"
+elif [ ! -f "$COMP/ce-lang/ce.py" ]; then
+  git clone -q https://github.com/Duffionis/Ce- "$COMP"
+  git -C "$COMP" checkout -q "$PIN"
+fi
+exec python3 "$COMP/ce-lang/ce.py" "$@"

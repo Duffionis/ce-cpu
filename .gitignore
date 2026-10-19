@@ -1,0 +1,4 @@
+.compilatore
+__pycache__/
+*.c
+a.out

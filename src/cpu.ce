@@ -1,0 +1,157 @@
+// CPU giocattolo a 16 bit ("TC16"): 8 registri, memoria di parole a 16 bit,
+// istruzioni di una parola. Scritta in Ce++.
+//
+// Formato delle istruzioni (16 bit):
+//   tipo R:  oooo ddd sss 000000     op, registro destinazione, registro sorgente
+//   tipo I:  oooo ddd iiiiiiiii      op, registro destinazione, costante a 9 bit
+usa "../.compilatore/ce-lang/lib/risultato.ce";
+usa "../.compilatore/ce-lang/lib/vettore.ce";
+
+costante MEMORIA: usize = 512;
+
+costante OP_NOP: u16 = 0;
+costante OP_LDI: u16 = 1;    // rd = imm
+costante OP_ADD: u16 = 2;    // rd = rd + rs
+costante OP_SUB: u16 = 3;    // rd = rd - rs
+costante OP_AND: u16 = 4;
+costante OP_OR: u16 = 5;
+costante OP_XOR: u16 = 6;
+costante OP_LD: u16 = 7;     // rd = memoria[rs]
+costante OP_ST: u16 = 8;     // memoria[rs] = rd
+costante OP_CMP: u16 = 9;    // imposta i flag come rd - rs, senza salvare
+costante OP_JMP: u16 = 10;   // pc = imm
+costante OP_JZ: u16 = 11;    // se zero: pc = imm
+costante OP_JNZ: u16 = 12;   // se non zero: pc = imm
+costante OP_OUT: u16 = 13;   // scrive rd nell'uscita
+costante OP_HALT: u16 = 14;
+costante OP_ADDI: u16 = 15;  // rd = rd + imm (imm a 9 bit con segno)
+
+struttura Flag impacchettata {
+    zero: booleano : 1,
+    negativo: booleano : 1,
+    riporto: booleano : 1,
+}
+
+struttura Cpu {
+    reg: [u16; 8],
+    pc: u16,
+    flag: Flag,
+    mem: [u16],
+    fermo: booleano,
+    cicli: u64,
+    uscita: Vettore<u16>,
+}
+
+funzione nuova_cpu() -> Cpu {
+    variabile c: Cpu;
+    c.mem = riserva(u16, MEMORIA);
+    c.uscita = Vettore { dati: riserva(u16, 0), n: 0 };
+    ritorna c;
+}
+
+funzione libera_cpu(c: &Cpu) {
+    variabile m: [u16] = c.mem;
+    rischio { libera(m); }
+    c.mem = m;
+    c.uscita.libera_vettore();
+}
+
+funzione imposta_flag(c: &Cpu, r: u16, riporto: booleano) {
+    c.flag.zero = r == 0;
+    c.flag.negativo = (r >> 15) == 1;
+    c.flag.riporto = riporto;
+}
+
+// Esegue una istruzione. Ritorna vero se la CPU e' ancora in marcia, falso se si e' fermata,
+// oppure un errore (indirizzo fuori dalla memoria).
+funzione passo(c: &Cpu) -> Risultato<booleano, testo> {
+    se c.fermo { ritorna bene(falso); }
+    se (c.pc come usize) >= c.mem.lunghezza {
+        ritorna male("pc fuori dalla memoria");
+    }
+    variabile w: u16 = c.mem[c.pc come usize];
+    c.pc += 1;
+    c.cicli += 1;
+    variabile op: u16 = w >> 12;
+    variabile rd: usize = ((w >> 9) & 7) come usize;
+    variabile rs: usize = ((w >> 6) & 7) come usize;
+    variabile imm: u16 = w & 511;
+    variabile a: u16 = c.reg[rd];
+    variabile b: u16 = c.reg[rs];
+
+    se op == OP_NOP { ritorna bene(vero); }
+    se op == OP_LDI {
+        c.reg[rd] = imm;
+        ritorna bene(vero);
+    }
+    se op == OP_ADD {
+        variabile r: u16 = a + b;
+        c.reg[rd] = r;
+        c.imposta_flag(r, r < a);
+        ritorna bene(vero);
+    }
+    se op == OP_SUB || op == OP_CMP {
+        variabile r: u16 = a - b;
+        se op == OP_SUB { c.reg[rd] = r; }
+        c.imposta_flag(r, a < b);
+        ritorna bene(vero);
+    }
+    se op == OP_AND || op == OP_OR || op == OP_XOR {
+        variabile r: u16 = a & b;
+        se op == OP_OR { r = a | b; }
+        se op == OP_XOR { r = a ^ b; }
+        c.reg[rd] = r;
+        c.imposta_flag(r, falso);
+        ritorna bene(vero);
+    }
+    se op == OP_LD {
+        se (b come usize) >= c.mem.lunghezza {
+            ritorna male("lettura fuori dalla memoria");
+        }
+        c.reg[rd] = c.mem[b come usize];
+        ritorna bene(vero);
+    }
+    se op == OP_ST {
+        se (b come usize) >= c.mem.lunghezza {
+            ritorna male("scrittura fuori dalla memoria");
+        }
+        c.mem[b come usize] = a;
+        ritorna bene(vero);
+    }
+    se op == OP_JMP {
+        c.pc = imm;
+        ritorna bene(vero);
+    }
+    se op == OP_JZ {
+        se c.flag.zero { c.pc = imm; }
+        ritorna bene(vero);
+    }
+    se op == OP_JNZ {
+        se !c.flag.zero { c.pc = imm; }
+        ritorna bene(vero);
+    }
+    se op == OP_OUT {
+        c.uscita.aggiungi(a);
+        ritorna bene(vero);
+    }
+    se op == OP_ADDI {
+        variabile ext: u16 = imm;
+        se imm >= 256 { ext = imm | 65024; }
+        c.reg[rd] = a + ext;
+        imposta_flag(c, c.reg[rd], falso);
+        ritorna bene(vero);
+    }
+    // OP_HALT
+    c.fermo = vero;
+    ritorna bene(falso);
+}
+
+// Esegue fino all'HALT. Ritorna i cicli usati, o un errore.
+funzione esegui(c: &Cpu, max_cicli: u64) -> Risultato<u64, testo> {
+    mentre !c.fermo {
+        se c.cicli >= max_cicli { ritorna male("troppi cicli: il programma non finisce?"); }
+        variabile r: Risultato<booleano, testo> = c.passo();
+        se !r.riuscito { ritorna male(r.errore); }
+    }
+    ritorna bene(c.cicli);
+}

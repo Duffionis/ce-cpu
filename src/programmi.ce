@@ -1,0 +1,142 @@
+// Un mini-assemblatore e alcuni programmi per la CPU TC16.
+//   variabile a: Asm = Asm { m: c.mem, n: 0 };
+//   a.ldi(0, 5);  a.out(0);  a.halt();
+usa "cpu.ce";
+usa "../.compilatore/ce-lang/lib/mappa.ce";
+
+struttura Asm {
+    m: [u16],
+    n: usize,
+}
+
+funzione tipo_r(op: u16, rd: u16, rs: u16) -> u16 {
+    ritorna (op << 12) | (rd << 9) | (rs << 6);
+}
+funzione tipo_i(op: u16, rd: u16, imm: u16) -> u16 {
+    ritorna (op << 12) | (rd << 9) | (imm & 511);
+}
+
+funzione emetti(a: &Asm, w: u16) {
+    afferma(a.n < a.m.lunghezza, "il programma non sta nella memoria");
+    a.m[a.n] = w;
+    a.n += 1;
+}
+funzione ldi(a: &Asm, rd: u16, imm: u16) { a.emetti(tipo_i(OP_LDI, rd, imm)); }
+funzione addi(a: &Asm, rd: u16, imm: i32) { a.emetti(tipo_i(OP_ADDI, rd, (imm come u16))); }
+funzione add(a: &Asm, rd: u16, rs: u16) { a.emetti(tipo_r(OP_ADD, rd, rs)); }
+funzione sub(a: &Asm, rd: u16, rs: u16) { a.emetti(tipo_r(OP_SUB, rd, rs)); }
+funzione and_r(a: &Asm, rd: u16, rs: u16) { a.emetti(tipo_r(OP_AND, rd, rs)); }
+funzione or_r(a: &Asm, rd: u16, rs: u16) { a.emetti(tipo_r(OP_OR, rd, rs)); }
+funzione xor_r(a: &Asm, rd: u16, rs: u16) { a.emetti(tipo_r(OP_XOR, rd, rs)); }
+funzione ld(a: &Asm, rd: u16, rs: u16) { a.emetti(tipo_r(OP_LD, rd, rs)); }
+funzione st(a: &Asm, rd: u16, rs: u16) { a.emetti(tipo_r(OP_ST, rd, rs)); }
+funzione cmp(a: &Asm, rd: u16, rs: u16) { a.emetti(tipo_r(OP_CMP, rd, rs)); }
+funzione jmp(a: &Asm, dove: u16) { a.emetti(tipo_i(OP_JMP, 0, dove)); }
+funzione jz(a: &Asm, dove: u16) { a.emetti(tipo_i(OP_JZ, 0, dove)); }
+funzione jnz(a: &Asm, dove: u16) { a.emetti(tipo_i(OP_JNZ, 0, dove)); }
+funzione out(a: &Asm, rd: u16) { a.emetti(tipo_i(OP_OUT, rd, 0)); }
+funzione halt(a: &Asm) { a.emetti(tipo_i(OP_HALT, 0, 0)); }
+
+// Stampa i primi 10 numeri di Fibonacci.
+funzione programma_fibonacci(a: &Asm) {
+    a.ldi(0, 0);              // r0 = 0
+    a.ldi(1, 1);              // r1 = 1
+    a.ldi(2, 10);             // r2 = contatore
+    a.ldi(3, 1);              // r3 = 1
+    variabile ciclo: u16 = a.n come u16;
+    a.out(0);
+    a.ldi(4, 0);
+    a.add(4, 0);
+    a.add(4, 1);              // r4 = r0 + r1
+    a.ldi(0, 0);
+    a.add(0, 1);              // r0 = r1
+    a.ldi(1, 0);
+    a.add(1, 4);              // r1 = r4
+    a.sub(2, 3);              // contatore - 1 (imposta zero)
+    a.jnz(ciclo);
+    a.halt();
+}
+
+// Scrive 7 all'indirizzo 100, lo rilegge, ci somma 3 e lo stampa (10).
+funzione programma_memoria(a: &Asm) {
+    a.ldi(1, 100);
+    a.ldi(0, 7);
+    a.st(0, 1);               // memoria[r1] = r0
+    a.ldi(2, 0);
+    a.ld(2, 1);               // r2 = memoria[r1]
+    a.addi(2, 3);
+    a.out(2);
+    a.halt();
+}
+
+// Aritmetica, operazioni sui bit, flag e salto condizionato.
+funzione programma_aritmetica(a: &Asm) {
+    a.ldi(0, 5);
+    a.addi(0, -3);            // 5 - 3 = 2
+    a.out(0);
+    a.ldi(2, 10);
+    a.ldi(1, 12);
+    a.and_r(1, 2);            // 12 & 10 = 8
+    a.out(1);
+    a.ldi(1, 12);
+    a.or_r(1, 2);             // 12 | 10 = 14
+    a.out(1);
+    a.ldi(1, 12);
+    a.xor_r(1, 2);            // 12 ^ 10 = 6
+    a.out(1);
+    a.cmp(0, 0);              // zero = vero
+    variabile salto: usize = a.n;
+    a.jz(0);                  // da riempire: salta oltre l'istruzione sbagliata
+    a.ldi(3, 99);
+    a.out(3);                 // non deve eseguirsi
+    a.m[salto] = tipo_i(OP_JZ, 0, a.n come u16);
+    a.ldi(3, 77);
+    a.out(3);                 // 77
+    a.halt();
+}
+
+// Legge fuori dalla memoria: la CPU deve dare un errore, non crollare.
+funzione programma_errore(a: &Asm) {
+    a.ldi(1, 500);
+    a.addi(1, 100);           // r1 = 600 (la memoria ha 512 parole)
+    a.ld(0, 1);
+    a.halt();
+}
+
+// Non finisce mai.
+funzione programma_infinito(a: &Asm) {
+    a.jmp(0);
+}
+
+funzione nomi_istruzioni() -> Mappa<i32, testo> {
+    variabile n: Mappa<i32, testo> = nuova_mappa();
+    n.inserisci(0, "NOP");
+    n.inserisci(1, "LDI");
+    n.inserisci(2, "ADD");
+    n.inserisci(3, "SUB");
+    n.inserisci(4, "AND");
+    n.inserisci(5, "OR");
+    n.inserisci(6, "XOR");
+    n.inserisci(7, "LD");
+    n.inserisci(8, "ST");
+    n.inserisci(9, "CMP");
+    n.inserisci(10, "JMP");
+    n.inserisci(11, "JZ");
+    n.inserisci(12, "JNZ");
+    n.inserisci(13, "OUT");
+    n.inserisci(14, "HALT");
+    n.inserisci(15, "ADDI");
+    ritorna n;
+}
+
+// Stampa le prime 'quante' istruzioni di memoria in forma leggibile.
+funzione disassembla(m: [u16], quante: usize) {
+    variabile nomi: Mappa<i32, testo> = nomi_istruzioni();
+    per i in 0..quante {
+        variabile w: u16 = m[i];
+        variabile op: u16 = w >> 12;
+        stampa("  ", i, ": ", nomi.cerca(op come i32).valore_o("???"),
+               " r", (w >> 9) & 7, ", r", (w >> 6) & 7, " / ", w & 511);
+    }
+    nomi.libera_mappa();
+}
