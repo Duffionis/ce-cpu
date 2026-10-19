@@ -1,67 +1,76 @@
 # ce-cpu
 
-A toy 16-bit CPU ("TC16") with a tiny assembler, written in **[Ce++](https://github.com/Duffionis/Ce-)**
-(a small, safe, all-Italian systems language that compiles to C).
+Una CPU giocattolo a 16 bit ("TC16") con un piccolo assemblatore, scritta in
+**[Ce++](https://github.com/Duffionis/Ce-)** (un linguaggio di sistema piccolo,
+sicuro e tutto italiano che compila in C).
 
-It is the first real program built with Ce++ from *outside* the compiler's repository, so it also
-shows what the language can do and what it still lacks.
+E' il primo programma vero scritto in Ce++ *fuori* dal repository del
+compilatore: mostra cosa sa fare il linguaggio e cosa gli manca ancora.
 
-    ./ce run src/principale.ce
+    ./ce esegui src/principale.ce
 
-The first run downloads the Ce++ compiler (pinned to a known-good version, see the `PIN` line in
-`./ce`). You need `git`, `python3` and `gcc` or `clang`. The program runs its own self-tests and
-prints `TC16: tutti i test ok` (exit code 0) if everything works.
+Alla prima esecuzione scarica il compilatore Ce++ (fissato a una versione
+provata, vedi la riga `PIN` in `./ce`; se cambia, si aggiorna da solo).
+Servono `git`, `python3` e `gcc` o `clang`. Il programma esegue i propri test e
+stampa `TC16: tutti i test ok` (codice di uscita 0) se tutto funziona.
 
-## The CPU
+## La CPU
 
-8 registers (`r0`..`r7`, 16 bits), 512 words of memory, 16-bit instructions:
+8 registri (`r0`..`r7`, 16 bit), 512 parole di memoria, istruzioni a 16 bit:
 
-    tipo R:  oooo ddd sss 000000     opcode, destination register, source register
-    tipo I:  oooo ddd iiiiiiiii      opcode, destination register, 9-bit constant
+    tipo R:  oooo ddd sss 000000     codice, registro destinazione, registro sorgente
+    tipo I:  oooo ddd iiiiiiiii      codice, registro destinazione, costante a 9 bit
 
-| op | name | effect |
+| cod | nome | effetto |
 |----|------|--------|
-| 0 | NOP | nothing |
+| 0 | NOP | niente |
 | 1 | LDI rd, imm | rd = imm |
-| 2 | ADD rd, rs | rd = rd + rs (sets flags) |
-| 3 | SUB rd, rs | rd = rd - rs (sets flags) |
-| 4-6 | AND / OR / XOR rd, rs | bit operations |
-| 7 | LD rd, rs | rd = memory[rs] |
-| 8 | ST rd, rs | memory[rs] = rd |
-| 9 | CMP rd, rs | flags from rd - rs, result discarded |
+| 2 | ADD rd, rs | rd = rd + rs (aggiorna i segnali) |
+| 3 | SUB rd, rs | rd = rd - rs (aggiorna i segnali) |
+| 4-6 | AND / OR / XOR rd, rs | operazioni sui bit |
+| 7 | LD rd, rs | rd = memoria[rs] |
+| 8 | ST rd, rs | memoria[rs] = rd |
+| 9 | CMP rd, rs | segnali da rd - rs, risultato scartato |
 | 10 | JMP imm | pc = imm |
-| 11 / 12 | JZ / JNZ imm | jump if zero flag set / clear |
-| 13 | OUT rd | append rd to the output |
-| 14 | HALT | stop |
-| 15 | ADDI rd, imm | rd = rd + signed 9-bit imm |
+| 11 / 12 | JZ / JNZ imm | salta se il segnale zero e' attivo / spento |
+| 13 | OUT rd | aggiunge rd all'uscita |
+| 14 | HALT | ferma la CPU |
+| 15 | ADDI rd, imm | rd = rd + imm a 9 bit con segno |
 
-Flags (zero, negative, carry) are a packed struct of three 1-bit fields.
-Reading or writing outside memory, or running too long, gives an error value instead of crashing.
+I segnali (zero, negativo, riporto) sono una struttura impacchettata di tre
+campi da 1 bit. Leggere o scrivere fuori memoria, o girare troppo a lungo,
+restituisce un valore di errore invece di andare in crash. I mnemonici
+dell'assembly (LDI, ADD, JMP...) restano quelli internazionali.
 
-## Files
+## File
 
-    src/cpu.ce         registers, flags, memory, one-step execution, run loop
-    src/programmi.ce   assembler helpers (a.ldi(0, 5) ...), sample programs, disassembler
-    src/principale.ce  self-test: Fibonacci, memory, arithmetic and bit ops, error cases
-    ce                 wrapper that fetches and runs the pinned Ce++ compiler
+    src/cpu.ce         registri, segnali, memoria, esecuzione di un passo, ciclo
+    src/programmi.ce   assemblatore (a.ldi(0, 5) ...), programmi di esempio, disassemblatore
+    src/principale.ce  test: Fibonacci, memoria, aritmetica e bit, casi di errore
+    ce                 script che scarica ed esegue il compilatore Ce++ fissato
 
-## Ce++ features this program uses
+## Cosa di Ce++ usa questo programma
 
-- bit fields and a packed struct (`Flag`), `u16` arithmetic with defined wrap-around
-- heap memory (`riserva` / `libera`) and slices with bounds checking
-- generic library types: `Vettore<u16>` (output log), `Mappa<i32, testo>` (opcode names),
-  `Risultato<T, E>` (errors without crashing), `Opzione<T>`
-- reference parameters and method syntax: `c.passo()`, `a.emetti(w)`
-- modules (`usa`)
+- campi a bit e struttura impacchettata (`Segnali`), aritmetica `naturale16`
+  con overflow definito
+- memoria dell'heap (`riserva` / `libera`) e fette con controllo dei limiti
+- tipi generici della libreria: `Vettore<naturale16>` (registro dell'uscita),
+  `Mappa<intero, testo>` (nomi delle istruzioni), `Risultato<T, E>` (errori
+  senza crash), `Opzione<T>`
+- parametri per riferimento e sintassi a metodo: `c.passo()`, `a.emetti(w)`
+- moduli (`usa`)
 
-## Writing your own program
+## Scrivere un programma tuo
 
-Add a function to `src/programmi.ce` that takes `a: &Asm` and calls `a.ldi(...)`, `a.add(...)`,
-`a.out(...)`, `a.halt()`; labels are just `a.n come u16`. Then load it in a test like
+Aggiungi in `src/programmi.ce` una funzione che prende `a: &Assemblatore` e
+chiama `a.ldi(...)`, `a.add(...)`, `a.out(...)`, `a.halt()`; le etichette sono
+semplicemente `a.n come naturale16`. Poi caricala in un test come
 `prova_fibonacci` in `src/principale.ce`.
 
-## Notes found while writing it (things Ce++ could do better)
+## Cose notate scrivendolo (dove Ce++ puo' migliorare)
 
-- There is no `switch`: the instruction decoder is an `se` chain.
-- `Flag` cannot be built from a raw word (no safe bit-cast between an integer and a packed struct yet).
-- Operands print as `r0 / 0` in the disassembler for instructions that do not use them.
+- Non c'e' `switch`: il decodificatore delle istruzioni e' una catena di `se`.
+- `Segnali` non si costruisce da una parola grezza (ancora nessun cast sicuro
+  tra un intero e una struttura impacchettata).
+- Il disassemblatore stampa gli operandi come `r0 / 0` anche per le istruzioni
+  che non li usano.

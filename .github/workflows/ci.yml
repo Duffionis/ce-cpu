@@ -11,4 +11,4 @@ jobs:
       - name: Esegui la CPU (autotest)
         env:
           CC: ${{ matrix.cc }}
-        run: ./ce run src/principale.ce
+        run: ./ce esegui src/principale.ce
